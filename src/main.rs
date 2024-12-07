@@ -2,11 +2,10 @@ mod utils;
 mod types;
 
 use std::process::exit;
-use serde::{Deserialize, Serialize};
 use utils::files::{load_password, save_password};
-use utils::password::{decrypt_password, encrypt_password};
-use types::action::Commands;
+use types::action::{Commands};
 use clap::Parser;
+use crate::types::password::PasswordEntry;
 
 #[derive(Parser)]
 #[command(name = "Password Manager", version = "1.0", author = "B Mathieu <mathieu.busse24@gmail.com>")]
@@ -15,13 +14,7 @@ struct Cli {
     command: Commands,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct PasswordEntry {
-    id: String,
-    password: Vec<u8>,
-    description: String,
-    nonce: [u8; 12],
-}
+
 
 fn main() {
     let cli = Cli::parse();
@@ -38,13 +31,11 @@ fn main() {
 
     match cli.command {
         Commands::Add { id, password, description } => {
-            let password = encrypt_password(&password, &key);
-            let entry = PasswordEntry {
-                id,
-                password: password.0,
-                description,
-                nonce: password.1,
-            };
+            if passwords.iter().any(|p| p.id == id) {
+                println!("Password already exists");
+                exit(1);
+            }
+            let entry = PasswordEntry::new(id, password, description, &key);
             passwords.push(entry);
             match save_password(&passwords, &file_path) {
                 Ok(_) => println!("Password added"),
@@ -62,7 +53,7 @@ fn main() {
         },
         Commands::Search { id } => {
             if let Some(password) = passwords.iter().find(|p| p.id == id){
-                let pass = decrypt_password(&password.password, &key, &password.nonce);
+                let pass: String = password.get_password(&key);
                 println!("{} - {} - Password: {}", password.id, password.description, pass);
             }else {
                 println!("Password not found");
